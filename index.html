@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Калорийка • Open Food Facts</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap');
+        
+        .header-font { font-family: 'Space Grotesk', sans-serif; }
+
+        .screen { display: none; }
+        .screen.active { display: block; animation: fadeIn 0.4s ease forwards; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .food-card {
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .food-card:hover {
+            transform: translateY(-12px) scale(1.03);
+            box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+        }
+
+        .modal-content {
+            animation: slideUpModal 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+
+        @keyframes slideUpModal {
+            from { opacity: 0; transform: translateY(120px) scale(0.95); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        .progress-circle { transition: stroke-dashoffset 1.2s ease; }
+
+        .add-success { animation: popIn 0.6s ease; }
+
+        @keyframes popIn {
+            0% { transform: scale(0.7); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body class="bg-zinc-950 text-white min-h-screen pb-20">
+
+    <header class="bg-zinc-900 border-b border-zinc-800 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-x-3">
+                <div class="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-3xl flex items-center justify-center shadow-lg">
+                    <i class="fa-solid fa-leaf text-2xl"></i>
+                </div>
+                <h1 class="header-font text-3xl font-semibold tracking-tight">Калорийка</h1>
+            </div>
+            <div class="text-emerald-400 font-medium">Open Food Facts</div>
+        </div>
+    </header>
+
+    <div class="max-w-7xl mx-auto px-4 py-6">
+        <div id="sandbox-warning" class="hidden bg-yellow-500/10 border border-yellow-500 text-yellow-400 p-4 rounded-3xl mb-6 text-sm">
+            ⚠️ Режим песочницы. Данные не сохраняются после перезагрузки.
+        </div>
+
+        <!-- Дашборд -->
+        <div id="screen-0" class="screen active">
+            <div class="mt-10 text-center">
+                <div class="relative w-64 h-64 mx-auto">
+                    <svg class="w-full h-full -rotate-90" viewBox="0 0 200 200">
+                        <circle cx="100" cy="100" r="88" fill="none" stroke="#27272a" stroke-width="24"/>
+                        <circle id="progress-circle" class="progress-circle" cx="100" cy="100" r="88" fill="none" 
+                                stroke="#22c55e" stroke-width="24" stroke-dasharray="553" 
+                                stroke-dashoffset="553" stroke-linecap="round"/>
+                    </svg>
+                    <div class="absolute inset-0 flex flex-col items-center justify-center">
+                        <div id="kcal-consumed" class="text-6xl font-bold text-emerald-400">0</div>
+                        <div class="text-zinc-400">из 1800 ккал</div>
+                        <div id="percent" class="text-2xl mt-2 font-medium">0%</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Поиск -->
+        <div id="screen-1" class="screen">
+            <h2 class="text-3xl header-font font-semibold mb-2">Поиск продуктов</h2>
+            <p class="text-zinc-400 mb-6">Миллионы товаров со всего мира</p>
+            
+            <div class="relative mb-8">
+                <input id="search-input" type="text" placeholder="Куриная грудка, овсянка, банан..." 
+                       class="w-full bg-zinc-900 border border-zinc-700 focus:border-emerald-500 rounded-3xl px-7 py-6 text-lg outline-none"
+                       onkeyup="if(event.key==='Enter') searchOpenFoodFacts()">
+                <button onclick="searchOpenFoodFacts()" 
+                        class="absolute right-4 top-1/2 -translate-y-1/2 bg-emerald-500 hover:bg-emerald-600 w-12 h-12 rounded-3xl">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                </button>
+            </div>
+
+            <div id="search-results" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+        </div>
+
+        <!-- Рацион -->
+        <div id="screen-2" class="screen">
+            <h2 class="text-3xl header-font font-semibold mb-6">Сегодняшний рацион</h2>
+            <div id="meal-list" class="space-y-4"></div>
+            
+            <div class="mt-8 bg-zinc-900 rounded-3xl p-6">
+                <div class="flex justify-between text-xl font-medium">
+                    <span>Итого за день</span>
+                    <span id="day-total" class="text-emerald-400">0 ккал</span>
+                </div>
+            </div>
+        </div>
+
+        <div id="screen-3" class="screen">
+            <h2 class="text-3xl header-font font-semibold mb-6">История</h2>
+            <p class="text-zinc-400">Скоро здесь появится история за неделю</p>
+        </div>
+    </div>
+
+    <!-- Нижняя навигация -->
+    <nav class="fixed bottom-0 left-0 right-0 bg-zinc-900 border-t border-zinc-800 z-50">
+        <div class="grid grid-cols-4 py-3 text-xs text-center">
+            <button onclick="navigateTo(0)" class="flex flex-col items-center text-emerald-400 active:scale-95 transition-transform">
+                <i class="fa-solid fa-house text-2xl"></i><span>Главная</span>
+            </button>
+            <button onclick="navigateTo(1)" class="flex flex-col items-center active:scale-95 transition-transform">
+                <i class="fa-solid fa-magnifying-glass text-2xl"></i><span>Поиск</span>
+            </button>
+            <button onclick="navigateTo(2)" class="flex flex-col items-center active:scale-95 transition-transform">
+                <i class="fa-solid fa-utensils text-2xl"></i><span>Рацион</span>
+            </button>
+            <button onclick="navigateTo(3)" class="flex flex-col items-center active:scale-95 transition-transform">
+                <i class="fa-solid fa-clock-rotate-left text-2xl"></i><span>История</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Модальное окно -->
+    <div id="modal" class="hidden fixed inset-0 bg-black/70 flex items-end md:items-center justify-center z-[100]">
+        <div class="modal-content bg-zinc-900 w-full max-w-lg rounded-t-3xl md:rounded-3xl overflow-hidden">
+            <img id="modal-image" class="w-full h-56 object-cover" alt="">
+            <div class="p-6">
+                <h3 id="modal-name" class="text-2xl font-semibold"></h3>
+                <p id="modal-brand" class="text-emerald-400"></p>
+
+                <div class="mt-6">
+                    <label class="text-xs uppercase tracking-widest">Порция (грамм)</label>
+                    <input id="modal-qty" type="number" value="100" 
+                           oninput="updateModalNutrition()"
+                           class="w-full bg-zinc-800 rounded-2xl px-5 py-5 text-5xl font-bold text-center outline-none mt-2">
+                </div>
+
+                <div class="grid grid-cols-3 gap-4 mt-8 bg-zinc-800 rounded-3xl p-5 text-center">
+                    <div>
+                        <div class="text-xs text-zinc-400">ККАЛ</div>
+                        <div id="modal-kcal" class="text-4xl font-bold text-emerald-400">0</div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-zinc-400">Б</div>
+                        <div id="modal-protein" class="text-4xl font-bold">0</div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-zinc-400">Ж / У</div>
+                        <div id="modal-fat-carbs" class="text-4xl font-bold">0 / 0</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-4 border-t border-zinc-700 flex gap-3">
+                <button onclick="hideModal()" class="flex-1 py-5 border border-zinc-600 rounded-3xl font-medium hover:bg-zinc-800">Отмена</button>
+                <button onclick="addToToday()" class="flex-1 py-5 bg-emerald-500 hover:bg-emerald-600 rounded-3xl font-medium">Добавить в рацион</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let todayLog = { meals: [[], [], [], []], total: 0 };
+        let currentProduct = null;
+        let storageAvailable = true;
+
+        function isLocalStorageAvailable() {
+            try {
+                localStorage.setItem('test', '1');
+                localStorage.removeItem('test');
+                return true;
+            } catch (e) { return false; }
+        }
+
+        function loadData() {
+            if (isLocalStorageAvailable()) {
+                const saved = localStorage.getItem('caloriyka_of');
+                if (saved) todayLog = JSON.parse(saved);
+            } else {
+                storageAvailable = false;
+                document.getElementById('sandbox-warning').classList.remove('hidden');
+            }
+        }
+
+        function saveData() {
+            if (storageAvailable) localStorage.setItem('caloriyka_of', JSON.stringify(todayLog));
+        }
+
+        function updateDashboard() {
+            const total = todayLog.total || 0;
+            const goal = 1800;
+            const percent = Math.min(Math.round((total / goal) * 100), 100);
+
+            document.getElementById('kcal-consumed').textContent = total;
+            document.getElementById('percent').textContent = percent + '%';
+            document.getElementById('progress-circle').setAttribute('stroke-dashoffset', 553 - (553 * percent / 100));
+        }
+
+        async function searchOpenFoodFacts() {
+            const query = document.getElementById('search-input').value.trim();
+            if (!query) return;
+
+            const resultsDiv = document.getElementById('search-results');
+            resultsDiv.innerHTML = `<div class="col-span-full py-12 text-center text-zinc-400">Поиск...</div>`;
+
+            try {
+                const res = await fetch(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&json=1&fields=product_name,brands,energy_100g,proteins_100g,fat_100g,carbohydrates_100g,image_url,nutriments&page_size=24`);
+                const data = await res.json();
+
+                resultsDiv.innerHTML = '';
+
+                if (!data.products || data.products.length === 0) {
+                    resultsDiv.innerHTML = `<div class="col-span-full py-12 text-center text-zinc-400">Ничего не найдено</div>`;
+                    return;
+                }
+
+                data.products.forEach((p, i) => {
+                    const kcal = Math.round((p.nutriments?.energy_100g || 0) / 4.184);
+                    const card = document.createElement('div');
+                    card.className = "food-card bg-zinc-900 rounded-3xl overflow-hidden cursor-pointer";
+                    card.style.animationDelay = `${i * 60}ms`;
+                    card.innerHTML = `
+                        <img src="${p.image_url || 'https://picsum.photos/400/250?random'}" class="w-full h-48 object-cover">
+                        <div class="p-5">
+                            <div class="font-semibold">${p.product_name || 'Без названия'}</div>
+                            <div class="text-xs text-emerald-400">${p.brands || ''}</div>
+                            <div class="mt-4 flex justify-between items-end">
+                                <div>
+                                    <span class="text-4xl font-bold text-emerald-400">${kcal}</span>
+                                    <span class="text-xs text-zinc-400">ккал/100г</span>
+                                </div>
+                                <button onclick="event.stopImmediatePropagation(); showProductModal('${p._id}');" 
+                                        class="bg-emerald-500 px-5 py-3 rounded-3xl text-sm">Добавить</button>
+                            </div>
+                        </div>
+                    `;
+                    card.onclick = () => showProductModal(p._id);
+                    resultsDiv.appendChild(card);
+                });
+            } catch (e) {
+                resultsDiv.innerHTML = `<div class="col-span-full py-12 text-red-400 text-center">Ошибка подключения</div>`;
+            }
+        }
+
+        async function showProductModal(barcode) {
+            try {
+                const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${barcode}.json`);
+                const data = await res.json();
+                const p = data.product;
+
+                currentProduct = {
+                    name: p.product_name || 'Продукт',
+                    brand: p.brands || '',
+                    kcal100: Math.round((p.nutriments?.energy_100g || 0) / 4.184),
+                    protein100: p.nutriments?.proteins_100g || 0,
+                    fat100: p.nutriments?.fat_100g || 0,
+                    carbs100: p.nutriments?.carbohydrates_100g || 0,
+                    image: p.image_url
+                };
+
+                document.getElementById('modal-image').src = currentProduct.image || 'https://picsum.photos/600/400';
+                document.getElementById('modal-name').textContent = currentProduct.name;
+                document.getElementById('modal-brand').textContent = currentProduct.brand;
+
+                document.getElementById('modal-qty').value = 100;
+                updateModalNutrition();
+                
+                document.getElementById('modal').classList.remove('hidden');
+                document.getElementById('modal').classList.add('flex');
+            } catch(e) {
+                alert('Не удалось загрузить продукт');
+            }
+        }
+
+        function updateModalNutrition() {
+            if (!currentProduct) return;
+            const qty = parseFloat(document.getElementById('modal-qty').value) || 100;
+            const factor = qty / 100;
+
+            document.getElementById('modal-kcal').textContent = Math.round(currentProduct.kcal100 * factor);
+            document.getElementById('modal-protein').textContent = (currentProduct.protein100 * factor).toFixed(1);
+            document.getElementById('modal-fat-carbs').textContent = 
+                `${(currentProduct.fat100 * factor).toFixed(1)} / ${(currentProduct.carbs100 * factor).toFixed(1)}`;
+        }
+
+        function addToToday() {
+            if (!currentProduct) return;
+            const qty = parseFloat(document.getElementById('modal-qty').value) || 100;
+            const factor = qty / 100;
+
+            const entry = { ...currentProduct, qty, kcal: Math.round(currentProduct.kcal100 * factor) };
+
+            todayLog.meals[0].push(entry);
+            todayLog.total = (todayLog.total || 0) + entry.kcal;
+
+            saveData();
+            updateDashboard();
+            hideModal();
+            navigateTo(2);
+
+            const totalEl = document.getElementById('day-total');
+            totalEl.classList.add('add-success');
+            setTimeout(() => totalEl.classList.remove('add-success'), 700);
+        }
+
+        function hideModal() {
+            document.getElementById('modal').classList.add('hidden');
+            document.getElementById('modal').classList.remove('flex');
+        }
+
+        function navigateTo(n) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById('screen-' + n).classList.add('active');
+            if (n === 2) renderTodayMeals();
+        }
+
+        function renderTodayMeals() {
+            const container = document.getElementById('meal-list');
+            container.innerHTML = '';
+            let total = 0;
+
+            todayLog.meals[0].forEach((item, i) => {
+                total += item.kcal;
+                const div = document.createElement('div');
+                div.className = "bg-zinc-900 rounded-3xl p-5 flex justify-between items-center";
+                div.innerHTML = `
+                    <div>
+                        <div class="font-medium">${item.name}</div>
+                        <div class="text-xs text-zinc-400">${item.qty} г • ${item.brand}</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="font-bold text-emerald-400">${item.kcal} ккал</div>
+                        <button onclick="removeItem(${i}); event.stopImmediatePropagation()" 
+                                class="text-red-400 text-xs mt-2">удалить</button>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+
+            document.getElementById('day-total').textContent = total + ' ккал';
+        }
+
+        function removeItem(index) {
+            const item = todayLog.meals[0][index];
+            todayLog.total -= item.kcal;
+            todayLog.meals[0].splice(index, 1);
+            saveData();
+            renderTodayMeals();
+            updateDashboard();
+        }
+
+        // Запуск
+        window.onload = () => {
+            loadData();
+            updateDashboard();
+            navigateTo(1);
+        };
+    </script>
+</body>
+</html>
